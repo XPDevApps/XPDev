@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>YTB Sound - Upload Your Files</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; }
+    .container { max-width: 500px; padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
+    
+    /* Masquer l'input fichier natif */
+    #fileInput { display: none; }
+
+    /* Style du faux bouton de sélection de fichier */
+    .file-upload-btn {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+      background-color: #6c757d;
+      color: white;
+      text-align: center;
+      border-radius: 4px;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+    .file-upload-btn:hover { background-color: #5a6268; }
+
+    button { margin-top: 10px; display: block; width: 100%; padding: 10px; box-sizing: border-box; }
+    #uploadBtn { background-color: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px; }
+    #uploadBtn:disabled { background-color: #cccccc; }
+    #status { margin-top: 15px; word-break: break-all; }
+    .info-text { font-size: 12px; color: #666; margin-top: 5px; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h2>Upload Your Files</h2>
+  
+  <!-- Input masqué avec filtre sur les formats autorisés -->
+  <input type="file" id="fileInput" accept=".mp4,.avi,.mkv,.webm,.mp3,.mp2,.flac,.wav,.mpg,.3gp,.3gpp" onchange="updateFileName()">
+  
+  <!-- Faux bouton stylisé -->
+  <label for="fileInput" class="file-upload-btn" id="fileLabel">Choose a file</label>
+  <div class="info-text">Formats: mp4, avi, mkv, webm, mp3, mp2, flac, wav, mpg, 3gp, 3gpp (Max 45MB)</div>
+
+  <button id="uploadBtn" onclick="uploadFile()">Upload File</button>
+
+  <div id="status"></div>
+</div>
+
+<script>
+const GOFILE_TOKEN = "hWd5JwuDod18ZBDGsojLuLazHr5wbxsJ";
+const MAX_SIZE_MB = 45;
+
+function updateFileName() {
+  const fileInput = document.getElementById("fileInput");
+  const fileLabel = document.getElementById("fileLabel");
+  const statusDiv = document.getElementById("status");
+  
+  if (fileInput.files.length > 0) {
+    const file = fileInput.files[0];
+    
+    // Vérification de la taille (45 Mo max)
+    const fileSizeMB = file.size / (1024 * 1024);
+    if (fileSizeMB > MAX_SIZE_MB) {
+      statusDiv.innerHTML = `❌ File is too large (${fileSizeMB.toFixed(1)}MB). Max allowed is 45MB.`;
+      fileInput.value = ""; // Réinitialiser l'input
+      fileLabel.innerHTML = "Choose a file";
+      return;
+    }
+
+    statusDiv.innerHTML = "";
+    fileLabel.innerHTML = "📄 " + file.name;
+  }
+}
+
+async function uploadFile() {
+  const fileInput = document.getElementById("fileInput");
+  const statusDiv = document.getElementById("status");
+  const uploadBtn = document.getElementById("uploadBtn");
+
+  if (fileInput.files.length === 0) {
+    statusDiv.innerHTML = "❌ Please select a valid file.";
+    return;
+  }
+
+  const file = fileInput.files[0];
+  
+  // Double vérification de sécurité sur la taille avant l'envoi
+  if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+    statusDiv.innerHTML = "❌ Error: File exceeds the 45MB limit.";
+    return;
+  }
+
+  uploadBtn.disabled = true;
+  statusDiv.innerHTML = "⏳ Searching for an upload server...";
+
+  try {
+    const serverResponse = await fetch("https://api.gofile.io/servers");
+    const serverData = await serverResponse.json();
+
+    if (serverData.status !== "ok" || !serverData.data.servers.length) {
+      throw new Error("Unable to obtain a Gofile server.");
+    }
+
+    const serverName = serverData.data.servers[0].name;
+    statusDiv.innerHTML = `⏳ Uploading <b>${file.name}</b> to server <i>${serverName}</i>...`;
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("token", GOFILE_TOKEN);
+
+    const uploadResponse = await fetch(`https://${serverName}.gofile.io/contents/uploadfile`, {
+      method: "POST",
+      body: formData
+    });
+
+    const uploadData = await uploadResponse.json();
+
+    if (uploadData.status === "ok") {
+      const pageLink = uploadData.data.downloadPage;
+      statusDiv.innerHTML = `✅ <b>Upload successful!</b><br>File link: <a href="${pageLink}" target="_blank">${pageLink}</a>`;
+    } else {
+      statusDiv.innerHTML = `❌ Error during upload: ${uploadData.status}`;
+    }
+
+  } catch (error) {
+    statusDiv.innerHTML = `❌ An error occurred: ${error.message}`;
+  } finally {
+    uploadBtn.disabled = false;
+  }
+}
+</script>
+
+</body>
+</html>
